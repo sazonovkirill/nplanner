@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
+using System.Runtime.Serialization.Json;
+using System.IO;
 
 using NPlanner.Domain;
 
@@ -38,6 +40,42 @@ namespace NPlanner.Data
             get { return stories.Count; }
         }
 
+        public string ToJson()
+        {
+            List<Story> stories = GetStories();
+            DataContractJsonSerializer ser = new DataContractJsonSerializer(typeof(List<Story>));
+            using (MemoryStream memoryStream = new MemoryStream())
+            {
+                ser.WriteObject(memoryStream, stories);
+                memoryStream.Position = 0;
+                using (StreamReader sr = new StreamReader(memoryStream))
+                {                    
+                    return sr.ReadToEnd();
+                }
+            }
+        }
+
+        public void FromJson(string json)
+        {
+            DataContractJsonSerializer ser = new DataContractJsonSerializer(typeof(List<Story>));
+            MemoryStream memoryStream = new MemoryStream();
+            StreamWriter sw = new StreamWriter(memoryStream);
+            sw.Write(json);
+            sw.Flush();
+            memoryStream.Position = 0;
+            List<Story> stories = (List<Story>)ser.ReadObject(memoryStream);
+
+            this.stories = new Dictionary<long, Story>();
+            foreach (Story story in stories)
+            {
+                foreach (Task task in story.Tasks)
+                {
+                    task.Story = story;
+                }
+                this.stories.Add(story.Id, story);
+            }
+        }
+
         private static Story CloneStory(Story story)
         {
             Story newStory = new Story()
@@ -48,7 +86,8 @@ namespace NPlanner.Data
                 CreationDate = story.CreationDate,
                 IsCompleted = story.IsCompleted
             };
-            foreach (Task task in story.Tasks) {
+            foreach (Task task in story.Tasks) 
+            {
                 Task newTask = CloneTask(task);
                 newTask.Story = newStory;
                 newStory.Tasks.Add(newTask);
